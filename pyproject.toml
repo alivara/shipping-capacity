@@ -1,0 +1,114 @@
+[tool.ruff]
+line-length = 100
+
+[tool.flake8]
+max-line-length = 120
+exclude = [
+    "migrations",
+    "__pycache__",
+    "manage.py",
+    "settings.py",
+    "env",
+    ".env",
+    "./env",
+    "env/",
+    ".env/",
+    "venv",
+    ".venv",
+    "./.venv",
+    "venv/",
+    ".venv/",
+    "__init__.py",
+    "requirements.txt",
+    "versions",
+]
+
+[tool.pylint]
+max-line-length = 100
+variable-rgx = "((([a-z_][a-z0-9_]*)|(_[a-z0-9_]*)|(__[a-z][a-z0-9_]+__))$)|([A-Z_][A-Z0-9_]+$)"
+disable = [
+    'missing-module-docstring',
+    'missing-class-docstring',
+    'missing-function-docstring',
+    'import-outside-toplevel',
+    'too-many-arguments',
+    'too-many-locals',
+    'too-many-branches',
+    'too-many-statements',
+    'too-many-instance-attributes',
+    'too-many-public-methods',
+    'too-few-public-methods',
+    'too-many-lines',
+    'import-error',
+    'unused-argument',
+    'bare-except',
+    'broad-exception-caught',
+    'no-member',
+    'too-many-return-statements',
+    'protected-access',
+    'attribute-defined-outside-init',
+    'invalid-name',
+    'duplicate-code',
+]
+
+
+[tool.black]
+line-length = 100
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | \.env
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+)/
+'''
+
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 100
+skip = [".gitignore", ".dockerignore", ".venv", "requirement.txt"]
+
+[project]
+name = "shipping-capacity"
+version = "0.1.0"
+description = ""
+authors = [{ name = "alivara", email = "alivarasteh100@gmail.com" }]
+dynamic = ["readme"]
+requires-python = ">=3.13,<3.14"
+
+dependencies = [
+    "fastapi[all] (<0.115.12)",
+    "uvicorn (==0.34.0)",
+    "black (==24.10.0)",
+    "isort (==5.13.2)",
+    "flake8 (==7.1.1)",
+    "sqlalchemy (==2.0.37)",
+    "asyncpg (==0.30.0)",
+    "psycopg2 (==2.9.10)",
+    "pandas (>=2.3.3,<3.0.0)",
+    "alembic (>=1.17.0,<2.0.0)",
+    "gunicorn (>=23.0.0,<24.0.0)",
+]
+[tool.poetry]
+readme = ["README.md"]
+package-mode = false
+
+[project.packages]
+packages = [{ include = "app" }]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

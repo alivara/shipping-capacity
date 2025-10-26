@@ -63,9 +63,16 @@ class DatabaseSettings(BaseSettings):
         )
 
 
+class SecuritySettings(BaseSettings):
+    JWT_SECRET_KEY: str = "your_secret_key"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+
 class Settings(BaseModel):
     BASE: BaseAppSettings = BaseAppSettings()
     DATABASE: DatabaseSettings = DatabaseSettings()
+    SECURITY: SecuritySettings = SecuritySettings()
 
 
 @lru_cache()

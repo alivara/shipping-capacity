@@ -8,7 +8,8 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./logs:/app/logs
-      - .:/app
+      - ./app:/app/app
+      - ./.env:/app/.env
     ports:
       - "80:8000"
     healthcheck:

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-mkdir -p media/tmp/ logs/
+mkdir -p logs/
 
 echo ":: Db migrations..."
 alembic upgrade head

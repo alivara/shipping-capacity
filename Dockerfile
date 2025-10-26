@@ -30,6 +30,10 @@ RUN poetry config virtualenvs.create false && \
     poetry install --no-interaction --no-root --compile && \
     rm -rf /root/.cache/pypoetry
 
+# Download the CSV of data file from GitHub repository
+RUN curl -fSL -o /app/sailing_level_raw.csv \
+        https://raw.githubusercontent.com/xeneta/capacity-task/main/sailing_level_raw.csv
+
 # ------------------------- Final Stage -------------------------
 FROM python:3.13-slim
 
@@ -52,14 +56,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
-# TODO check if this works as expected
-COPY . .
+# Create the directory before copying into it
+RUN mkdir -p /app/data/
+# Copy the CSV data file
+COPY --from=builder /app/sailing_level_raw.csv /app/data/sailing_level_raw.csv
 
-# Download the CSV of data file from GitHub
-RUN curl -L -o data/sailing_level_raw.csv \
-    https://raw.githubusercontent.com/xeneta/capacity-task/main/sailing_level_raw.csv
-
-# Ensure proper permissions
-RUN chmod -R 755 /app
-
+# Copy the run script
+COPY ./run_app.sh alembic.ini ./
 CMD ["./run_app.sh"]
