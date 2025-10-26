@@ -41,7 +41,26 @@ class DatabaseSettings(BaseSettings):
     POSTGRESQL_PORT: str = ""
     POSTGRESQL_DB: str = ""
 
+    CSV_FILE_PATH: str = "data/sailing_level_raw.csv"
+
     model_config = SettingsConfigDict(env_prefix="DATABASE_")
+
+    @property
+    def POSTGRESQL_URL_ASYNC(self):
+        return (
+            "postgresql+asyncpg://"
+            f"{self.POSTGRESQL_USER}:"
+            f"{self.POSTGRESQL_PASSWORD}@{self.POSTGRESQL_HOST}:"
+            f"{self.POSTGRESQL_PORT}/{self.POSTGRESQL_DB}"
+        )
+
+    @property
+    def POSTGRESQL_URL(self):
+        return (
+            "postgresql://"
+            f"{self.POSTGRESQL_USER}:{self.POSTGRESQL_PASSWORD}@"
+            f"{self.POSTGRESQL_HOST}:{self.POSTGRESQL_PORT}/{self.POSTGRESQL_DB}"
+        )
 
 
 class Settings(BaseModel):
