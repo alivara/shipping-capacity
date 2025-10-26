@@ -24,5 +24,10 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": False,
         },
+        "ETL": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }

@@ -18,8 +18,8 @@ class SailingTable(BaseTable):
     destination = Column("destination", String(255), nullable=False)
     origin_port_code = Column("origin_port_code", String(255), nullable=False)
     destination_port_code = Column("destination_port_code", String(255), nullable=False)
-    service_version_and_roundtrip_identifiers = Column(
-        "service_version_and_roundtrip_identifiers", String(255), nullable=False
+    service_version_and_roundtrip_identfiers = Column(
+        "service_version_and_roundtrip_identfiers", String(255), nullable=False
     )
     origin_service_version_and_master = Column(
         "origin_service_version_and_master", String(255), nullable=False
@@ -35,6 +35,6 @@ class SailingTable(BaseTable):
     def __repr__(self):
         return (
             f"<SailingData(id={self.id}, "
-            f"service='{self.service_version_and_roundtrip_identifiers}', "
+            f"service='{self.service_version_and_roundtrip_identfiers}', "
             f"origin_at_utc='{self.origin_at_utc}')>"
         )

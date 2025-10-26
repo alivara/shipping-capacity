@@ -1,10 +1,12 @@
 import logging
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI
 
-from app.api.api import router
+from app.api import api_router
 from app.config import Environment, Settings, get_settings
+from app.database.utils import load_csv_to_database
 from app.logging_config import LOGGING_CONFIG
 
 # Configure logging
@@ -14,7 +16,25 @@ logger = logging.getLogger("APP")
 # Get application settings
 setting = get_settings()
 
-# TODO add the lifespan manager to handle startup and shutdown events
+
+# Application lifespan
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager.
+    Create the tables and load data from CSV file on startup,
+    """
+    try:
+        await load_csv_to_database(
+            csv_file_path=setting.DATABASE.CSV_FILE_PATH,
+        )
+    except Exception as e:
+        logger.error(f"Error loading CSV data: {e}")
+        raise e
+    logger.info("Hello from lifespan!")
+    yield
+    logger.info("Shutting down application...")
+
 
 app = FastAPI(
     title="Shipping Capacity",
@@ -22,11 +42,12 @@ app = FastAPI(
     docs_url="/docs" if setting.BASE.ENV != Environment.PRODUCTION else None,
     redoc_url="/redoc" if setting.BASE.ENV != Environment.PRODUCTION else None,
     redirect_slashes=True,
+    lifespan=lifespan,
 )
 
 
 # Include routers
-app.include_router(router)
+app.include_router(api_router)
 
 
 @app.get(

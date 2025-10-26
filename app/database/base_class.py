@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase
 
@@ -14,6 +14,7 @@ class BaseTable(DeclarativeBase):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+        server_default=text("uuid_generate_v4()"),  # Set by PostgreSQL by default
         unique=True,
         nullable=False,
     )
