@@ -20,7 +20,8 @@ services:
       start_interval: 10s
       start_period: 30s
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     env_file: .env
     networks:
       - main
