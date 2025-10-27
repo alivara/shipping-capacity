@@ -6,16 +6,19 @@ import psycopg2
 
 from app.config import get_settings
 
-from .model import SailingTable
-
-settings = get_settings()
+from ..model import SailingTable
 
 logger = logging.getLogger("ETL")
 
 
 class ETLPipeline:
+    """
+    ETL Pipeline for loading CSV data into the database.
+    """
+
     def __init__(self, table_name: str = SailingTable.__tablename__):
         self.table_name = table_name
+        self.settings = get_settings()
 
     async def extract(self, csv_file_path: str) -> pd.DataFrame:
         """
@@ -42,11 +45,11 @@ class ETLPipeline:
         # Standardize column names
         df.columns = [col.lower() for col in df.columns]
 
-        # Transformations
-        df["offered_capacity_teu"] = (
-            pd.to_numeric(df["offered_capacity_teu"], errors="coerce").fillna(0).astype(int)
-        )
-        df["origin_at_utc"] = pd.to_datetime(df["origin_at_utc"], utc=True, errors="coerce")
+        # # Transformations
+        # df["offered_capacity_teu"] = (
+        #     pd.to_numeric(df["offered_capacity_teu"], errors="coerce").fillna(0).astype(int)
+        # )
+        # df["origin_at_utc"] = pd.to_datetime(df["origin_at_utc"], utc=True, errors="coerce")
 
         logger.info("Data transformation complete.")
         return df
@@ -54,7 +57,7 @@ class ETLPipeline:
     async def load(self, df_transformed: pd.DataFrame):
         logger.info(f"Loading {len(df_transformed)} rows into {self.table_name}...")
 
-        conn = psycopg2.connect(settings.DATABASE.POSTGRESQL_URL)
+        conn = psycopg2.connect(self.settings.DATABASE.POSTGRESQL_URL)
         with conn.cursor() as curs:
             # Convert DataFrame to CSV in memory
             csv_buffer = io.BytesIO()

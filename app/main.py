@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI
 
 from app.api import api_router
 from app.config import Environment, Settings, get_settings
-from app.database.utils import load_csv_to_database
+from app.database.utils import clear_table, load_csv_to_database
 from app.logging_config import LOGGING_CONFIG
 
 # Configure logging
@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
         raise e
     logger.info("Hello from lifespan!")
     yield
+    await clear_table()
     logger.info("Shutting down application...")
 
 
