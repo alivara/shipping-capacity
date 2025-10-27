@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, Index, Integer, String
 
 from .base_class import BaseTable
 
@@ -30,7 +30,14 @@ class SailingTable(BaseTable):
     origin_at_utc = Column("origin_at_utc", DateTime(timezone=True), nullable=False)
     offered_capacity_teu = Column("offered_capacity_teu", Integer, nullable=False)
 
-    # TODO check which indexes are needed based on query patterns
+    __table_args__ = (
+        Index(
+            "idx_sailings_general_query_pattern",
+            origin,
+            destination,
+            origin_at_utc,
+        ),
+    )
 
     def __repr__(self):
         return (
