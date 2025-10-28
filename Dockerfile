@@ -65,5 +65,6 @@ COPY --from=builder /app/sailing_level_raw.csv /app/data/sailing_level_raw.csv
 # Copy application code and configuration
 COPY ./app /app/app
 COPY ./run_app.sh alembic.ini pytest.ini ./
+COPY ./scripts /app/scripts
 
 CMD ["./run_app.sh"]

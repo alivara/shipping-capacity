@@ -7,7 +7,6 @@ from fastapi import Depends, FastAPI
 
 from app.api import api_router
 from app.config import Environment, Settings, get_settings
-from app.database.utils import clear_table, load_csv_to_database
 from app.logging_config import LOGGING_CONFIG
 
 # Configure logging
@@ -23,19 +22,16 @@ setting = get_settings()
 async def lifespan(app: FastAPI):
     """
     Application lifespan manager.
-    Create the tables and load data from CSV file on startup,
+
+    Data loading is handled externally via ETL scripts.
+    This keeps application startup fast and decouples data management from app lifecycle.
     """
-    try:
-        await load_csv_to_database(
-            csv_file_path=setting.DATABASE.CSV_FILE_PATH,
-        )
-    except Exception as e:
-        logger.error(f"Error loading CSV data: {e}")
-        raise e
-    logger.info("Hello from lifespan!")
+    logger.info("Application starting...")
+    logger.info(f"Environment: {setting.BASE.ENV}")
+
     yield
-    await clear_table()
-    logger.info("Shutting down application...")
+
+    logger.info("Application shutting down...")
 
 
 app = FastAPI(
