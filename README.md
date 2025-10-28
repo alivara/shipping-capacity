@@ -20,6 +20,7 @@ This application follows:
 - **Database**: PostgreSQL with persistent data between application restarts
 
 ## Quick Start
+Make sure you have installed Docker on your system, and then you can use `./deploy.sh`.
 
 ```bash
 # To run the tests
