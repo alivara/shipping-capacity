@@ -102,6 +102,8 @@ class ETLPipeline:
 
         if df.empty:
             logger.warning("DataFrame is empty, skipping transformation")
+            # Still transform column names even for empty DataFrame
+            df.columns = [col.lower() for col in df.columns]
             return df
 
         initial_rows = len(df)

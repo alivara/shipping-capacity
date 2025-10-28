@@ -56,11 +56,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
-# Create the directory before copying into it
-RUN mkdir -p /app/data/
+# Create necessary directories
+RUN mkdir -p /app/data/ /app/logs
+
 # Copy the CSV data file
 COPY --from=builder /app/sailing_level_raw.csv /app/data/sailing_level_raw.csv
 
-# Copy the run script
-COPY ./run_app.sh alembic.ini ./
+# Copy application code and configuration
+COPY ./app /app/app
+COPY ./run_app.sh alembic.ini pytest.ini ./
+
 CMD ["./run_app.sh"]

@@ -76,9 +76,7 @@ async def get_shipping_capacity_by_data(
             """
             WITH unique_journeys AS (
                 -- Step 1: Get unique service/vessel combinations
-                -- Note: Deduplication primarily happens at ETL time, but DISTINCT ON
-                -- is kept here as a defensive measure to handle any edge cases or
-                -- manually inserted data that might bypass ETL deduplication
+                -- Note: DISTINCT ON is kept here as a defensive measure to handle any edge cases
                 SELECT DISTINCT ON (
                     service_version_and_roundtrip_identfiers,
                     origin_service_version_and_master,
