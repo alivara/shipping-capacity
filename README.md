@@ -42,7 +42,17 @@ poetry install
 pip install -r requirements.txt
 ```
 
-### 2. Configure Database
+### 2. Create ENV
+
+Create `.env` from the example:
+
+```bash
+cp .env.Example .env
+```
+
+Edit `.env` with your credentials:
+
+### 3. Configure Database
 
 Create `database.env` from the example:
 
@@ -60,14 +70,14 @@ DATABASE_POSTGRESQL_DB=shipping_capacity
 DATABASE_CSV_FILE_PATH=data/sailing_level_raw.csv
 ```
 
-### 3. Run Database Migrations
+### 4. Run Database Migrations
 
 ```bash
 # Create database schema
 alembic upgrade head
 ```
 
-### 4. Load Data
+### 5. Load Data
 
 **Important**: Data is loaded externally, not by the application.
 
@@ -82,7 +92,7 @@ python scripts/etl_manager.py load --csv-path data/sailing_level_raw.csv
 python scripts/etl_manager.py refresh
 ```
 
-### 5. Start Application
+### 6. Start Application
 
 ```bash
 # Development mode
