@@ -5,7 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.capacity.schemas import CapacityFilterParams
-from app.capacity.util import get_shipping_capacity_by_data
+from app.capacity.service import CapacityService
 from app.database.model import SailingTable
 
 
@@ -111,7 +111,8 @@ class TestCapacityCalculationLogic:
 
         # Get capacity data
         filters = CapacityFilterParams(date_from=date(2024, 1, 1), date_to=date(2024, 1, 7))
-        result = await get_shipping_capacity_by_data(test_db_session, filters)
+        service = CapacityService(test_db_session)
+        result = await service.calculate_capacity(filters)
 
         # Should have one week with combined capacity
         assert len(result) == 1
@@ -153,7 +154,8 @@ class TestCapacityCalculationLogic:
         filters = CapacityFilterParams(
             date_from=date(2024, 1, 29), date_to=date(2024, 2, 4)  # Week 5
         )
-        result = await get_shipping_capacity_by_data(test_db_session, filters)
+        service = CapacityService(test_db_session)
+        result = await service.calculate_capacity(filters)
 
         assert len(result) == 1
         # Rolling average of weeks 2-5: (20000 + 30000 + 40000 + 50000) / 4 = 35000
@@ -161,13 +163,15 @@ class TestCapacityCalculationLogic:
 
         # Test week 1 (only 1 week of history)
         filters_week1 = CapacityFilterParams(date_from=date(2024, 1, 1), date_to=date(2024, 1, 7))
-        result_week1 = await get_shipping_capacity_by_data(test_db_session, filters_week1)
+        service_week1 = CapacityService(test_db_session)
+        result_week1 = await service_week1.calculate_capacity(filters_week1)
         assert len(result_week1) == 1
         assert result_week1[0].offered_capacity_teu == 10000  # Only week 1
 
         # Test week 3 (should average weeks 1, 2, 3)
         filters_week3 = CapacityFilterParams(date_from=date(2024, 1, 15), date_to=date(2024, 1, 21))
-        result_week3 = await get_shipping_capacity_by_data(test_db_session, filters_week3)
+        service_week3 = CapacityService(test_db_session)
+        result_week3 = await service_week3.calculate_capacity(filters_week3)
         assert len(result_week3) == 1
         # Average of weeks 1, 2, 3: (10000 + 20000 + 30000) / 3 = 20000
         assert result_week3[0].offered_capacity_teu == 20000
@@ -224,7 +228,8 @@ class TestCapacityCalculationLogic:
         await test_db_session.commit()
 
         filters = CapacityFilterParams(date_from=date(2024, 1, 1), date_to=date(2024, 1, 7))
-        result = await get_shipping_capacity_by_data(test_db_session, filters)
+        service = CapacityService(test_db_session)
+        result = await service.calculate_capacity(filters)
 
         # Should only have data from the correct route
         assert len(result) == 1
@@ -273,7 +278,8 @@ class TestCapacityCalculationLogic:
         filters = CapacityFilterParams(
             date_from=date(2024, 1, 8), date_to=date(2024, 1, 14)  # Week 2
         )
-        result = await get_shipping_capacity_by_data(test_db_session, filters)
+        service = CapacityService(test_db_session)
+        result = await service.calculate_capacity(filters)
 
         # Should be assigned to week 2 based on the latest departure
         assert len(result) == 1
@@ -286,7 +292,8 @@ class TestCapacityCalculationLogic:
         Test that query returns empty result when no data exists for the range.
         """
         filters = CapacityFilterParams(date_from=date(2025, 1, 1), date_to=date(2025, 1, 31))
-        result = await get_shipping_capacity_by_data(test_db_session, filters)
+        service = CapacityService(test_db_session)
+        result = await service.calculate_capacity(filters)
 
         assert len(result) == 0
 
@@ -317,7 +324,8 @@ class TestCapacityCalculationLogic:
         await test_db_session.commit()
 
         filters = CapacityFilterParams(date_from=date(2024, 1, 1), date_to=date(2024, 1, 31))
-        result = await get_shipping_capacity_by_data(test_db_session, filters)
+        service = CapacityService(test_db_session)
+        result = await service.calculate_capacity(filters)
 
         # Verify week numbers are sequential and reasonable
         week_numbers = [row.week_no for row in result]
@@ -351,7 +359,8 @@ class TestEdgeCases:
         await test_db_session.commit()
 
         filters = CapacityFilterParams(date_from=date(2024, 1, 1), date_to=date(2024, 1, 7))
-        result = await get_shipping_capacity_by_data(test_db_session, filters)
+        service = CapacityService(test_db_session)
+        result = await service.calculate_capacity(filters)
 
         assert len(result) == 1
         assert result[0].offered_capacity_teu == 999999999
@@ -377,7 +386,8 @@ class TestEdgeCases:
         await test_db_session.commit()
 
         filters = CapacityFilterParams(date_from=date(2024, 1, 1), date_to=date(2024, 1, 7))
-        result = await get_shipping_capacity_by_data(test_db_session, filters)
+        service = CapacityService(test_db_session)
+        result = await service.calculate_capacity(filters)
 
         assert len(result) == 1
         assert result[0].offered_capacity_teu == 0
@@ -423,14 +433,16 @@ class TestEdgeCases:
             from_origin="southeast_asia",
             to_destination="us_west_coast",
         )
-        result_custom = await get_shipping_capacity_by_data(test_db_session, filters_custom)
+        service_custom = CapacityService(test_db_session)
+        result_custom = await service_custom.calculate_capacity(filters_custom)
 
         assert len(result_custom) == 1
         assert result_custom[0].offered_capacity_teu == 25000
 
         # Test with default route
         filters_default = CapacityFilterParams(date_from=date(2024, 1, 1), date_to=date(2024, 1, 7))
-        result_default = await get_shipping_capacity_by_data(test_db_session, filters_default)
+        service_default = CapacityService(test_db_session)
+        result_default = await service_default.calculate_capacity(filters_default)
 
         assert len(result_default) == 1
         assert result_default[0].offered_capacity_teu == 20000

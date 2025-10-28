@@ -88,8 +88,6 @@ class ETLPipeline:
 
         Applies the following transformations:
         1. Standardizes column names to lowercase (to match database schema)
-        2. Removes exact duplicate rows
-        3. Deduplicates based on unique journey identifiers (keeps latest departure)
 
         Args:
             df: Raw DataFrame from extraction phase
