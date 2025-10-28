@@ -7,7 +7,7 @@ and response serialization.
 
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CapacityResponse(BaseModel):
@@ -96,13 +96,11 @@ class CapacityFilterParams(BaseModel):
     #     description="Number of results to skip (pagination, not currently applied)"
     # )
 
-    @field_validator("date_to")
-    @classmethod
-    def validate_date_range(cls, v: date, info) -> date:
-        """Validate that date_to is not before date_from."""
-        if "date_from" in info.data and v < info.data["date_from"]:
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.date_to < self.date_from:
             raise ValueError("date_to cannot be before date_from")
-        return v
+        return self
 
     model_config = ConfigDict(
         extra="forbid",

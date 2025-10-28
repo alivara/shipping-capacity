@@ -1,14 +1,7 @@
-"""
-API endpoints for shipping capacity calculations.
-
-This module provides REST API endpoints for querying shipping capacity data
-and calculating rolling averages for trade lanes.
-"""
-
 import logging
-from typing import List
+from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -85,7 +78,7 @@ logger = logging.getLogger("APP")
     },
 )
 async def get_capacity(
-    filter_query: CapacityFilterParams = Depends(),
+    filter_query: Annotated[CapacityFilterParams, Query()],
     session: AsyncSession = Depends(get_db_session),
 ) -> List[dict]:
     """
