@@ -114,3 +114,49 @@ class CapacityFilterParams(BaseModel):
             }
         },
     )
+
+
+CAPACITY_ENDPOINT_RESPONSES = {
+    200: {
+        "description": "Successfully retrieved capacity data",
+        "content": {
+            "application/json": {
+                "example": [
+                    {
+                        "week_start_date": "2024-01-08",
+                        "week_no": 2,
+                        "offered_capacity_teu": 123000,
+                    },
+                    {
+                        "week_start_date": "2024-01-15",
+                        "week_no": 3,
+                        "offered_capacity_teu": 125000,
+                    },
+                ]
+            }
+        },
+    },
+    400: {
+        "description": "Invalid request parameters",
+        "content": {
+            "application/json": {"example": {"detail": "date_from cannot be after date_to"}}
+        },
+    },
+    422: {
+        "description": "Validation error - invalid date format",
+        "content": {
+            "application/json": {
+                "example": {
+                    "detail": [
+                        {
+                            "loc": ["query", "date_from"],
+                            "msg": "invalid date format",
+                            "type": "value_error.date",
+                        }
+                    ]
+                }
+            }
+        },
+    },
+    500: {"description": "Internal server error"},
+}

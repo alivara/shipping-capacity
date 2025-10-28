@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated, List
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.session import get_db_session
 
-from .schemas import CapacityFilterParams, CapacityResponse
-from .util import get_shipping_capacity_by_data
+from .schemas import CAPACITY_ENDPOINT_RESPONSES, CapacityFilterParams, CapacityResponse
+from .service import CapacityService
 
 router = APIRouter(tags=["Capacity"])
 logger = logging.getLogger("APP")
@@ -16,7 +16,7 @@ logger = logging.getLogger("APP")
 
 @router.get(
     "/capacity",
-    response_model=List[CapacityResponse],
+    response_model=list[CapacityResponse],
     summary="Get shipping capacity with 4-week rolling average",
     description="""
     Calculate and return the 4-week rolling average of offered shipping capacity (TEU)
@@ -32,55 +32,12 @@ logger = logging.getLogger("APP")
 
     **Week Convention**: Weeks start on Monday (ISO 8601 standard)
     """,
-    responses={
-        200: {
-            "description": "Successfully retrieved capacity data",
-            "content": {
-                "application/json": {
-                    "example": [
-                        {
-                            "week_start_date": "2024-01-08",
-                            "week_no": 2,
-                            "offered_capacity_teu": 123000,
-                        },
-                        {
-                            "week_start_date": "2024-01-15",
-                            "week_no": 3,
-                            "offered_capacity_teu": 125000,
-                        },
-                    ]
-                }
-            },
-        },
-        400: {
-            "description": "Invalid request parameters",
-            "content": {
-                "application/json": {"example": {"detail": "date_from cannot be after date_to"}}
-            },
-        },
-        422: {
-            "description": "Validation error - invalid date format",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": [
-                            {
-                                "loc": ["query", "date_from"],
-                                "msg": "invalid date format",
-                                "type": "value_error.date",
-                            }
-                        ]
-                    }
-                }
-            },
-        },
-        500: {"description": "Internal server error"},
-    },
+    responses=CAPACITY_ENDPOINT_RESPONSES,
 )
 async def get_capacity(
     filter_query: Annotated[CapacityFilterParams, Query()],
     session: AsyncSession = Depends(get_db_session),
-) -> List[dict]:
+) -> list[dict]:
     """
     Get 4-week rolling average of offered shipping capacity (TEU) per week.
 
@@ -110,10 +67,12 @@ async def get_capacity(
             f"Fetching capacity data: {filter_query.date_from} to {filter_query.date_to} "
             f"({filter_query.from_origin} -> {filter_query.to_destination})"
         )
-        result = await get_shipping_capacity_by_data(session, filter_query)
+
+        # calculate capacity
+        capacity_service = CapacityService(session)
+        result = await capacity_service.calculate_capacity(filter_query)
         logger.info(f"Successfully returned {len(result)} weeks of capacity data")
         return result
-
     except SQLAlchemyError as e:
         logger.error(f"Database error while fetching shipping capacity: {e}", exc_info=True)
         raise HTTPException(
@@ -122,5 +81,6 @@ async def get_capacity(
     except Exception as e:
         logger.error(f"Unexpected error while fetching shipping capacity: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="An unexpected error occurred while processing your request"
+            status_code=500,
+            detail=f"An unexpected error occurred while processing your request {e}",
         )
