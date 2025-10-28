@@ -58,24 +58,45 @@ wait_for_db() {
 # Development Commands
 ################################################################################
 
-cmd_install() {
-    print_header "Installing Dependencies"
-    check_poetry
-    poetry install
-    print_success "Dependencies installed!"
-}
-
 cmd_run() {
     print_header "Starting Application (Local)"
-    check_poetry
     check_docker_compose
 
-    docker compose -f docker-compose.local.yml up -d postgres || true
-    wait_for_db
+    # Start database if not running
+    if ! docker compose -f docker-compose.local.yml ps postgres | grep -q "Up"; then
+        print_info "Starting database..."
+        docker compose -f docker-compose.local.yml up -d postgres
+        wait_for_db
+    else
+        print_info "Database already running"
+    fi
 
-    print_info "Starting FastAPI at http://localhost:8000"
-    print_info "Docs: http://localhost:8000/docs"
-    poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    # Start app
+    print_info "Starting FastAPI at http://localhost"
+    print_info "Docs: http://localhost/docs"
+    docker compose -f docker-compose.local.yml up -d app-fastapi
+
+    print_info "Waiting for app to be healthy..."
+    # Wait for health endpoint with retry (30 second timeout)
+    for i in {1..30}; do
+        if curl -f -s http://localhost/health > /dev/null 2>&1; then
+            print_success "App is healthy!"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            print_error "App health check timeout after 30 seconds!"
+            print_info "Check logs: docker compose -f docker-compose.local.yml logs app-fastapi"
+            exit 1
+        fi
+        echo -n "."
+        sleep 1
+    done
+
+    # Add ETL data loading
+    print_info "Loading data..."
+    cmd_etl_docker_load "data/sailing_level_raw.csv"
+    print_success "Data loaded!"
+
 }
 
 ################################################################################
@@ -105,27 +126,28 @@ cmd_db_restart() {
 
 cmd_db_reset() {
     print_header "Resetting Database"
-    print_warning "This will DELETE all data!"
-    read -p "Continue? (y/N): " -n 1 -r
+    print_warning "This will DELETE all data and volumes!"
+    print_warning "All sailing data will be lost!"
     echo
-    [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
+    read -p "Type 'yes' to confirm: " -r
+    echo
+    [[ ! $REPLY == "yes" ]] && { print_info "Reset cancelled"; exit 0; }
 
     check_docker_compose
+    print_info "Stopping and removing database..."
     docker compose -f docker-compose.local.yml down -v postgres
+
+    print_info "Starting fresh database..."
     cmd_db_start
-    print_success "Database reset!"
+
+    print_success "Database reset complete!"
+    print_info ""
+    print_info "Next steps:"
+    print_info "  1. Run migrations: ${GREEN}alembic upgrade head${NC}"
+    print_info "  2. Load data:      ${GREEN}./deploy.sh etl:load${NC}"
 }
 
-cmd_db_shell() {
-    print_header "Database Shell"
-    check_docker_compose
-    docker compose -f docker-compose.local.yml exec postgres psql -U admin -d local
-}
 
-cmd_db_logs() {
-    check_docker_compose
-    docker compose -f docker-compose.local.yml logs -f postgres
-}
 
 ################################################################################
 # Testing Commands
@@ -152,22 +174,6 @@ cmd_test() {
 
     local EXIT_CODE=$?
 
-    [ $EXIT_CODE -eq 0 ] && print_success "All tests passed!" || print_error "Tests failed!"
-    exit $EXIT_CODE
-}
-
-cmd_test_local() {
-    print_header "Running Tests Locally (Poetry Required)"
-    check_poetry
-    check_docker_compose
-
-    docker compose -f docker-compose.local.yml up -d postgres || true
-    wait_for_db
-
-    print_info "Running tests locally..."
-    poetry run pytest app/tests/ -v
-
-    local EXIT_CODE=$?
     [ $EXIT_CODE -eq 0 ] && print_success "All tests passed!" || print_error "Tests failed!"
     exit $EXIT_CODE
 }
@@ -225,16 +231,42 @@ cmd_docker_up() {
     check_docker_compose
 
     print_info "Building image..."
-    docker compose -f docker-compose.local.yml build app-fastapi
+    if ! docker compose -f docker-compose.local.yml build app-fastapi; then
+        print_error "Build failed!"
+        exit 1
+    fi
 
     print_info "Starting services..."
-    docker compose -f docker-compose.local.yml up -d
-    wait_for_db
+    if ! docker compose -f docker-compose.local.yml up -d; then
+        print_error "Failed to start services!"
+        exit 1
+    fi
 
-    print_success "Services started!"
-    print_info "API: http://localhost:80"
-    print_info "Docs: http://localhost:80/docs"
-    print_info "PgAdmin: http://localhost:15432"
+    wait_for_db
+    sleep 3  # Give app time to start
+
+    # Verify services are running
+    print_info "Verifying services..."
+    RUNNING=$(docker compose -f docker-compose.local.yml ps --status running | grep -c "Up" || echo "0")
+
+    if [ "$RUNNING" -gt 0 ]; then
+        print_success "Services started! ($RUNNING containers running)"
+        print_info ""
+        print_info "Available endpoints:"
+        print_info "  API:     ${GREEN}http://localhost:80${NC}"
+        print_info "  Docs:    ${GREEN}http://localhost:80/docs${NC}"
+        print_info "  PgAdmin: ${GREEN}http://localhost:15432${NC}"
+        print_info ""
+        print_info "Next steps:"
+        print_info "  1. Check status: ${GREEN}./deploy.sh status${NC}"
+        print_info "  2. Check data:   ${GREEN}./deploy.sh etl:status${NC}"
+        print_info "  3. Load data:    ${GREEN}./deploy.sh etl:load${NC}"
+        print_info "  4. View logs:    ${GREEN}./deploy.sh docker:logs${NC}"
+    else
+        print_error "Services failed to start!"
+        print_info "Check logs with: ./deploy.sh docker:logs"
+        exit 1
+    fi
 }
 
 cmd_docker_down() {
@@ -244,47 +276,74 @@ cmd_docker_down() {
     print_success "Services stopped!"
 }
 
-cmd_docker_logs() {
+
+################################################################################
+# ETL Commands
+################################################################################
+cmd_etl_status() {
+    print_header "ETL Status"
     check_docker_compose
-    docker compose -f docker-compose.local.yml logs -f "$@"
+
+    docker compose -f docker-compose.local.yml run --rm app-fastapi \
+        python scripts/etl_manager.py status
 }
 
-################################################################################
-# Utility Commands
-################################################################################
+cmd_etl_docker_load() {
+    print_header "ETL Load Data (Docker)"
+    check_docker_compose
 
-cmd_clean() {
-    print_header "Cleaning Project"
-    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-    find . -type f -name "*.pyc" -delete 2>/dev/null || true
-    find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-    rm -rf .pytest_cache htmlcov .coverage build dist 2>/dev/null || true
-    print_success "Project cleaned!"
+    local CSV_PATH="${1:-data/sailing_level_raw.csv}"
+
+    print_info "Loading from: $CSV_PATH (inside container)"
+
+    # Run ETL load in Docker container
+    if docker compose -f docker-compose.local.yml run --rm app-fastapi \
+        python scripts/etl_manager.py load --csv-path "$CSV_PATH"; then
+        print_success "Data loaded successfully!"
+        print_info "Check status with: ${GREEN}./deploy.sh etl:status${NC}"
+    else
+        print_error "Data loading failed!"
+        print_info "Possible causes:"
+        print_info "  - CSV file not found in container at: $CSV_PATH"
+        print_info "  - Data already exists (use --force or clear first)"
+        print_info "  - Database connection issue"
+        print_info ""
+        print_info "Check logs: docker compose -f docker-compose.local.yml logs app-fastapi"
+        exit 1
+    fi
 }
 
-cmd_logs() {
-    [ -f "logs/app.log" ] && tail -f logs/app.log || print_error "Log file not found"
-}
+cmd_etl_docker_refresh() {
+    print_header "ETL Refresh Data (Docker)"
+    check_docker_compose
 
-cmd_status() {
-    print_header "Service Status"
-    echo -e "\n${BLUE}Docker Services:${NC}"
-    docker compose -f docker-compose.local.yml ps 2>/dev/null || echo "  No services running"
-}
+    local CSV_PATH="${1:-data/sailing_level_raw.csv}"
 
-cmd_lint() {
-    print_header "Running Linters"
-    check_poetry
-    poetry run ruff check app/ || true
-    poetry run mypy app/ || true
-}
+    # Check if CSV file exists
+    if [ ! -f "$CSV_PATH" ]; then
+        print_error "CSV file not found: $CSV_PATH"
+        exit 1
+    fi
 
-cmd_format() {
-    print_header "Formatting Code"
-    check_poetry
-    poetry run black app/ app/tests/
-    poetry run isort app/ app/tests/
-    print_success "Code formatted!"
+    print_warning "This will CLEAR and RELOAD all data!"
+    print_info "CSV file: $CSV_PATH"
+    print_info "File size: $(du -h "$CSV_PATH" | cut -f1)"
+    echo
+
+    read -p "Continue? (y/N): " -n 1 -r
+    echo
+    [[ ! $REPLY =~ ^[Yy]$ ]] && { print_info "Refresh cancelled"; exit 0; }
+
+    if docker compose -f docker-compose.local.yml run --rm app-fastapi \
+        python scripts/etl_manager.py refresh --csv-path "$CSV_PATH"; then
+        print_success "Data refreshed successfully!"
+        print_info "Check status with: ${GREEN}./deploy.sh etl:status${NC}"
+    else
+        print_error "Data refresh failed!"
+        print_warning "Table may be in an inconsistent state"
+        print_info "Try: ${GREEN}./deploy.sh etl:load${NC}"
+        exit 1
+    fi
 }
 
 ################################################################################
@@ -294,47 +353,66 @@ cmd_format() {
 cmd_help() {
     cat << EOF
 
-${BLUE}Shipping Capacity API - Deployment Script${NC}
+${BLUE}╔════════════════════════════════════════╗
+║  Shipping Capacity API - Deploy Script  ║
+╚════════════════════════════════════════╝${NC}
+
+${GREEN}🚀 Quick Start (First Time Users):${NC}
+  quickstart        One-command setup (Docker + Data + Services)
 
 ${GREEN}Development:${NC}
-  install           Install dependencies
-  run               Start local dev server (hot reload)
+  run               Start dev server (port 80)
   shell             Open Poetry shell
 
 ${GREEN}Database:${NC}
   db:start          Start PostgreSQL
   db:stop           Stop PostgreSQL
   db:restart        Restart PostgreSQL
-  db:reset          Reset database (deletes all data)
-  db:shell          Open psql shell
-  db:logs           View database logs
+  db:reset          Reset database (⚠️  deletes all data)
+
+
+${GREEN}ETL (Data Management):${NC}
+  etl:status        Check data status (rows, size, dates)
+  etl:load [path]   Load CSV data (default: data/sailing_level_raw.csv)
+  etl:refresh       Clear + reload all data
 
 ${GREEN}Testing:${NC}
   test              Run all tests ⚡
   test:unit         Run unit tests only (no DB)
-  test:coverage     Run with coverage report
+  test:coverage     Generate coverage report
 
 ${GREEN}Docker:${NC}
-  docker:build      Build image
-  docker:up         Build + start all services
+  docker:build      Build application image
+  docker:up         Build + start all services (port 80)
   docker:down       Stop all services
-  docker:logs       View logs
+  docker:logs       View service logs
 
-${GREEN}Utilities:${NC}
-  clean             Remove cache files
-  lint              Run linters
-  format            Format code
-  status            Show service status
-  help              Show this help
+${BLUE}═══════════════════════════════════════${NC}
+${GREEN}Common Workflows:${NC}
 
-${GREEN}Examples:${NC}
-  ./deploy.sh db:start       # Start database
-  ./deploy.sh test           # Run all tests
-  ./deploy.sh test:coverage  # Generate coverage
-  ./deploy.sh docker:up      # Start all services
-  ./deploy.sh run            # Local dev server
+  ${YELLOW}First Time Setup:${NC}
+    ${GREEN}./deploy.sh quickstart${NC}
 
-${YELLOW}Tip:${NC} Use ${GREEN}poetry run pytest -v${NC} for fastest tests during development
+  ${YELLOW}Daily Development:${NC}
+    1. ${GREEN}./deploy.sh run${NC}              # Start app (fast!)
+    2. ${GREEN}./deploy.sh etl:status${NC}       # Check data
+    3. Make changes, app auto-reloads ⚡
+    4. ${GREEN}./deploy.sh test${NC}             # Run tests
+
+  ${YELLOW}Data Refresh:${NC}
+    ${GREEN}./deploy.sh etl:refresh${NC}         # While app runs!
+
+  ${YELLOW}Production-Like:${NC}
+    1. ${GREEN}./deploy.sh docker:up${NC}        # All services
+    2. ${GREEN}./deploy.sh etl:load${NC}         # Load data
+    3. API at ${GREEN}http://localhost:80${NC}
+
+${BLUE}═══════════════════════════════════════${NC}
+${YELLOW}💡 Tips:${NC}
+  • Data loading is ${GREEN}separate${NC} from app startup
+  • Use ${GREEN}status${NC} to check what's running
+  • ${GREEN}etl:refresh${NC} works while app is running!
+  • Check ${GREEN}etl:status${NC} before loading data
 
 EOF
 }
@@ -346,7 +424,6 @@ EOF
 main() {
     case "${1:-help}" in
         # Development
-        install) cmd_install ;;
         run|start) cmd_run ;;
         shell) cmd_shell ;;
 
@@ -355,12 +432,14 @@ main() {
         db:stop) cmd_db_stop ;;
         db:restart) cmd_db_restart ;;
         db:reset) cmd_db_reset ;;
-        db:shell|db:psql) cmd_db_shell ;;
-        db:logs) cmd_db_logs ;;
+
+        # ETL
+        etl:status) cmd_etl_status ;;
+        etl:load) shift; cmd_etl_docker_load "$@" ;;
+        etl:refresh) shift; cmd_etl_docker_refresh "$@" ;;
 
         # Testing
         test|test:all) cmd_test ;;
-        test:local|test:dev) cmd_test_local ;;
         test:unit) cmd_test_unit ;;
         test:coverage|coverage) cmd_test_coverage ;;
 
@@ -368,21 +447,14 @@ main() {
         docker:build|build) cmd_docker_build ;;
         docker:up|up) cmd_docker_up ;;
         docker:down|down) cmd_docker_down ;;
-        docker:logs) shift; cmd_docker_logs "$@" ;;
-
-        # Utilities
-        clean) cmd_clean ;;
-        lint) cmd_lint ;;
-        format) cmd_format ;;
-        logs) cmd_logs ;;
-        status) cmd_status ;;
 
         # Help
-        help|--help|-h) cmd_help ;;
+        help|--help|-h|"") cmd_help ;;
 
         *)
             print_error "Unknown command: $1"
-            echo "Run './deploy.sh help' for usage"
+            echo ""
+            echo "Run '${GREEN}./deploy.sh help${NC}' for usage"
             exit 1
             ;;
     esac
