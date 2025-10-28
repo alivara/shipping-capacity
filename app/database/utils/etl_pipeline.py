@@ -114,44 +114,7 @@ class ETLPipeline:
         df.columns = [col.lower() for col in df.columns]
         logger.debug(f"Transformed column names: {original_columns} -> {df.columns.tolist()}")
 
-        # Step 2: Remove exact duplicate rows
-        df = df.drop_duplicates()
-        exact_duplicates_removed = initial_rows - len(df)
-        if exact_duplicates_removed > 0:
-            logger.warning(
-                f"Removed {exact_duplicates_removed:,} exact duplicate rows "
-                f"({exact_duplicates_removed/initial_rows*100:.1f}%)"
-            )
-
-        # Step 3: Deduplicate based on unique journey identifiers
-        # Keep only the latest departure for each unique vessel/service combination
-        # This aligns with business logic: one vessel+service = one journey
-        unique_identifiers = [
-            "service_version_and_roundtrip_identfiers",
-            "origin_service_version_and_master",
-            "destination_service_version_and_master",
-        ]
-
-        # Sort by departure time (descending) to keep latest when deduplicating
-        df = df.sort_values("origin_at_utc", ascending=False)
-        rows_before_dedup = len(df)
-        df = df.drop_duplicates(subset=unique_identifiers, keep="first")
-        business_duplicates_removed = rows_before_dedup - len(df)
-
-        if business_duplicates_removed > 0:
-            logger.info(
-                f"Kept latest departure for each unique journey: "
-                f"removed {business_duplicates_removed:,} duplicate journeys "
-                f"({business_duplicates_removed/rows_before_dedup*100:.1f}%)"
-            )
-
-        final_rows = len(df)
-        total_removed = initial_rows - final_rows
-        logger.info(
-            f"Data transformation complete. "
-            f"Final row count: {final_rows:,} "
-            f"(removed {total_removed:,} total rows, {total_removed/initial_rows*100:.1f}%)"
-        )
+        logger.info("Data transformation complete.")
 
         return df
 
